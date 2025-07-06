@@ -1,0 +1,70 @@
+{
+  "experiment_config": {
+    "cache_dir": "./cache_dir",
+    "clip_type": "LanguageBind_Video_FT",
+    "csv_file": "/root/autodl-tmp/LanguageBind/datasets/datasets--friedrichor--MSR-VTT/snapshots/c1af215a96934854f42683c19c51391aaee6f962/raw_data/MSRVTT_JSFUSION_test.csv",
+    "video_base_path": "/root/autodl-tmp/LanguageBind/datasets/datasets--friedrichor--MSR-VTT/snapshots/c1af215a96934854f42683c19c51391aaee6f962/MSRVTT_Videos/video",
+    "norm": "linf",
+    "eps": 0.01568627450980392,
+    "alpha": 0.00784313725490196,
+    "n_attack_samples": 1000,
+    "batch_size": 16,
+    "attack_batch_size": 8,
+    "full_dataset_attack": false,
+    "blackbox_only": false,
+    "attacks_to_run": null,
+    "experiment_name": "msrvtt_full_attack_eval",
+    "save_results": true,
+    "verbose": true
+  },
+  "baseline_performance": {
+    "text_to_video": {
+      "R1": 45.0,
+      "R5": 67.7,
+      "R10": 76.7,
+      "MR": 2.0,
+      "MedianR": 2.0,
+      "MeanR": 22.791
+    },
+    "video_to_text": {
+      "R1": 41.8,
+      "R5": 66.4,
+      "R10": 76.9,
+      "MR": 2.0,
+      "MedianR": 2.0,
+      "MeanR": 20.667
+    }
+  },
+  "attack_results": [
+    {
+      "attack_method": "apgd-dlr",
+      "dataset_scope": "子集",
+      "total_samples": 1000,
+      "attack_time": 6958.590801954269,
+      "avg_time_per_sample": 6.958590801954269,
+      "baseline_r1": 45.0,
+      "baseline_r5": 67.7,
+      "baseline_r10": 76.7,
+      "original_r1": 41.1,
+      "original_r5": 66.6,
+      "original_r10": 76.6,
+      "original_mean_rank": 20.601,
+      "attacked_r1": 2.0,
+      "attacked_r5": 53.0,
+      "attacked_r10": 65.4,
+      "attacked_mean_rank": 40.718,
+      "r1_drop": 39.1,
+      "r5_drop": 13.599999999999994,
+      "r10_drop": 11.199999999999989,
+      "mean_rank_increase": 20.117000000000004,
+      "attack_success_rate": 0.391,
+      "mean_rank_degradation": 20.117
+    }
+  ],
+  "summary": {
+    "best_attack": "apgd-dlr",
+    "max_r1_drop": 39.1,
+    "max_r5_drop": 13.599999999999994,
+    "max_success_rate": 0.391
+  }
+}

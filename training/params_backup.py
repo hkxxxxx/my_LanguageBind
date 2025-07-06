@@ -44,14 +44,6 @@ def parse_args(args):
     parser.add_argument("--do_train", action='store_true', help="Whether to run training.")
     parser.add_argument("--do_eval", action='store_true', help="Whether to run eval on the dev set.")
 
-    ###################################
-    # MSR-VTT Dataset Parameters
-    parser.add_argument("--msrvtt-train-csv", type=str, default='', help="Path to MSR-VTT training CSV file")
-    parser.add_argument("--msrvtt-val-csv", type=str, default='', help="Path to MSR-VTT validation CSV file")
-    parser.add_argument("--msrvtt-data-json", type=str, default='', help="Path to MSR-VTT data JSON file")
-    parser.add_argument("--msrvtt-video-path", type=str, default='', help="Path to MSR-VTT video directory")
-    parser.add_argument("--image-resolution", type=int, default=224, help="Image resolution for video frames")
-
     ############################
     # LoRA
     parser.add_argument("--convert_to_lora", action='store_true', help="Whether to run eval on the dev set.")
@@ -220,7 +212,8 @@ def parse_args(args):
         "--epochs", type=int, default=32, help="Number of epochs to train for."
     )
     parser.add_argument(
-        "--epochs-cooldown", type=int, default=None, help="When scheduler w/ cooldown used, perform cooldown from total_epochs - cooldown_epochs onwards."
+        "--epochs-cooldown", type=int, default=None,
+        help="When scheduler w/ cooldown used, perform cooldown from total_epochs - cooldown_epochs onwards."
     )
     parser.add_argument("--lr", type=float, default=None, help="Learning rate.")
     parser.add_argument("--beta1", type=float, default=None, help="Adam beta 1.")
@@ -245,7 +238,6 @@ def parse_args(args):
         "--lr-scheduler",
         type=str,
         default='cosine',
-        choices=['cosine', 'const', 'const-cooldown'],
         help="LR scheduler. One of: 'cosine', 'const' (constant), 'const-cooldown' (constant w/ cooldown). Default: cosine",
     )
     parser.add_argument(
@@ -266,7 +258,7 @@ def parse_args(args):
         help="Always save the most recent model trained to epoch_latest.pt.",
     )
     parser.add_argument(
-        "--zeroshot-frequency", type=int, default=2, help="How often to run zero shot."
+        "--zeroshot-frequency", type=int, default=1, help="How often to run zero shot."
     )
     parser.add_argument(
         "--val-frequency", type=int, default=1, help="How often to run evaluation with val data."
@@ -279,7 +271,7 @@ def parse_args(args):
     )
     parser.add_argument(
         "--precision",
-        choices=["amp", "amp_bf16", "amp_bfloat16", "bf16", "fp16", "fp32"],
+        choices=["amp", "amp_bf16", "amp_bfloat16", "bf16", "fp16", "pure_bf16", "pure_fp16", "fp32"],
         default="amp",
         help="Floating point precision."
     )
@@ -308,12 +300,6 @@ def parse_args(args):
         help="Lock full image tower by disabling gradients.",
     )
     parser.add_argument(
-        "--lock-text",
-        default=False,
-        action='store_true',
-        help="Lock full text tower by disabling gradients.",
-    )
-    parser.add_argument(
         "--lock-image-unlocked-groups",
         type=int,
         default=0,
@@ -326,47 +312,70 @@ def parse_args(args):
         help="Freeze BatchNorm running stats in image tower for any locked layers.",
     )
     parser.add_argument(
-        "--lock-text-unlocked-layers",
-        type=int,
-        default=0,
-        help="Leave last n image tower layer groups unlocked.",
-    )
+        '--image-mean', type=float, nargs='+', default=None, metavar='MEAN',
+        help='Override default image mean value of dataset')
     parser.add_argument(
-    "--lock-text-freeze-bn-stats",
-    default=False,
-    action='store_true',
-    help="Freeze BatchNorm running stats in text tower for any locked layers.",
-    )
+        '--image-std', type=float, nargs='+', default=None, metavar='STD',
+        help='Override default image std deviation of of dataset')
+    parser.add_argument('--aug-cfg', nargs='*', default={}, action=ParseKwargs)
     parser.add_argument(
-    "--lock-text-unlocked-groups",
-    type=int,
-    default=0,
-    help="Leave last n text tower layer groups unlocked.",
-    )
-    parser.add_argument(
-        "--lock-text-freeze-layer-norm",
+        "--grad-checkpointing",
         default=False,
         action='store_true',
-        help="Freeze BatchNorm running stats in image tower for any locked layers.",
+        help="Enable gradient checkpointing.",
     )
     parser.add_argument(
-        "--image-mean", 
-        type=float, 
-        nargs='+', 
-        default=None, 
-        metavar='MEAN',
-        help='Override default image mean'
+        "--local-loss",
+        default=False,
+        action="store_true",
+        help="calculate loss w/ local features @ global (instead of realizing full global @ global matrix)"
     )
     parser.add_argument(
-        "--image-std", 
-        type=float, 
-        nargs='+', 
-        default=None, 
-        metavar='STD',
-        help='Override default image std deviation'
+        "--gather-with-grad",
+        default=False,
+        action="store_true",
+        help="enable full distributed gradient for feature gather"
     )
-    parser.add_argument('--grad-clip-norm', type=float, default=None, help='gradient clipping max norm')
-    parser.add_argument('--normlize-gradient', action='store_true', default=False, help='normlize gradient')
+    parser.add_argument(
+        '--force-image-size', type=int, nargs='+', default=None,
+        help='Override default image size'
+    )
+    parser.add_argument(
+        "--force-quick-gelu",
+        default=False,
+        action='store_true',
+        help="Force use of QuickGELU activation for non-OpenAI transformer models.",
+    )
+    parser.add_argument(
+        "--force-patch-dropout",
+        default=None,
+        type=float,
+        help="Override the patch dropout during training, for fine tuning with no dropout near the end as in the paper",
+    )
+    parser.add_argument(
+        "--force-custom-text",
+        default=False,
+        action='store_true',
+        help="Force use of CustomTextCLIP model (separate text-tower).",
+    )
+    parser.add_argument(
+        "--torchscript",
+        default=False,
+        action='store_true',
+        help="torch.jit.script the model, also uses jit version of OpenAI models if pretrained=='openai'",
+    )
+    parser.add_argument(
+        "--torchcompile",
+        default=False,
+        action='store_true',
+        help="torch.compile() the model, requires pytorch 2.0 or later.",
+    )
+    parser.add_argument(
+        "--trace",
+        default=False,
+        action='store_true',
+        help="torch.jit.trace the model for inference / eval only",
+    )
     parser.add_argument(
         "--accum-freq", type=int, default=1, help="Update the model every --acum-freq steps."
     )
@@ -408,7 +417,7 @@ def parse_args(args):
         "--copy-codebase",
         default=False,
         action="store_true",
-        help="If true, we copy the entire base on the log diretory, and execute from there."
+        help="If true, we copy the entire base on the log directory, and execute from there."
     )
     parser.add_argument(
         "--horovod",
@@ -420,7 +429,7 @@ def parse_args(args):
         "--ddp-static-graph",
         default=False,
         action='store_true',
-        help='Enable static graph optimization for DDP in PyTorch >= 1.11.',
+        help="Enable static graph optimization for DDP in PyTorch >= 1.11.",
     )
     parser.add_argument(
         "--no-set-device-rank",
@@ -428,69 +437,36 @@ def parse_args(args):
         action="store_true",
         help="Don't set device index from local rank (when CUDA_VISIBLE_DEVICES restricted to one per proc)."
     )
-    parser.add_argument("--seed", type=int, default=0, help="Default random seed.")
     parser.add_argument(
-        "--grad-checkpointing",
+        "--seed", type=int, default=0, help="Default random seed."
+    )
+    parser.add_argument(
+        "--grad-clip-norm", type=float, default=None, help="Gradient clip."
+    )
+    parser.add_argument(
+        "--lock-text",
         default=False,
         action='store_true',
-        help="Enable gradient checkpointing.",
+        help="Lock full text tower by disabling gradients.",
     )
     parser.add_argument(
-        "--local-loss",
-        default=False,
-        action="store_true",
-        help="calculate loss w/ local features @ global (instead of realizing full global @ global matrix)"
-    )
-    parser.add_argument(
-        "--gather-with-grad",
-        default=False,
-        action="store_true",
-        help="enable full distributed gradient for feature gather"
-    )
-    parser.add_argument(
-        "--force-quick-gelu",
-        default=False,
-        action='store_true',
-        help="Force use of QuickGELU activation for non-OpenAI transformer models.",
-    )
-    parser.add_argument(
-        "--force-patch-dropout",
-        default=None,
-        type=float,
-        help="Override the patch dropout during training, for fine tuning with no dropout near the end as in the paper",
-    )
-    parser.add_argument(
-        "--force-image-size",
-        default=None,
+        "--lock-text-unlocked-layers",
         type=int,
-        nargs='+',
-        help="Override model config's image size",
+        default=0,
+        help="Leave last n image tower layer groups unlocked.",
     )
     parser.add_argument(
-        "--force-text-size",
-        default=None,
+        "--lock-text-freeze-layer-norm",
+        default=False,
+        action='store_true',
+        help="Freeze BatchNorm running stats in image tower for any locked layers.",
+    )
+    parser.add_argument(
+        "--log-every-n-steps",
         type=int,
-        help="Override model config's text context length",
+        default=100,
+        help="Log every n steps to tensorboard/console/wandb.",
     )
-    parser.add_argument(
-        "--torchscript",
-        default=False,
-        action='store_true',
-        help="torch.jit.script the model, also uses jit friendly HuggingFace tokenizer",
-    )
-    parser.add_argument(
-        "--torchcompile",
-        default=False,
-        action='store_true',
-        help="torch.compile() the model, requires pytorch 2.0 or later.",
-    )
-    parser.add_argument(
-        "--trace",
-        default=False,
-        action='store_true',
-        help="torch.jit.trace the model for inference / eval only",
-    )
-    # arguments for coca
     parser.add_argument(
         "--coca-caption-loss-weight",
         type=float,
@@ -502,12 +478,6 @@ def parse_args(args):
         type=float,
         default=1.0,
         help="Weight assigned to contrastive loss when training CoCa."
-    )
-    parser.add_argument(
-        "--log-every-n-steps",
-        type=int,
-        default=100,
-        help="Log every n steps to tensorboard/console/wandb.",
     )
     parser.add_argument(
         "--remote-sync",
@@ -548,7 +518,7 @@ def parse_args(args):
         default=None,
         help='Replace the network linear layers from the bitsandbytes library. '
         'Allows int8 training/inference, etc.'
-    ) 
+    )
     args = parser.parse_args(args)
 
     # If some params are not passed, we use the default values based on model name.
