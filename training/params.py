@@ -10,6 +10,16 @@ def get_default_params(model_name):
     else:
         return {"lr": 5.0e-4, "beta1": 0.9, "beta2": 0.999, "eps": 1.0e-8}
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ValueError
+
 
 class ParseKwargs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -549,6 +559,48 @@ def parse_args(args):
         help='Replace the network linear layers from the bitsandbytes library. '
         'Allows int8 training/inference, etc.'
     ) 
+    # attack
+    parser.add_argument(
+        "--attack",
+        default=None,
+        help='Norm to use for the attack. Can be l2, linf, l1, or None.'
+    )
+    parser.add_argument(
+        "--inner-loss",
+        default=None,
+        type=str,
+        help='inner loss to use for the attack. Can be ce, l2, l1, or None.'
+    )
+    parser.add_argument(
+        "--norm",
+        default="linf",
+        type=str,
+        help='linf norm to use for the attack. Can be l2, linf, l1, or None.'
+    )
+    parser.add_argument(
+        "--eps_attack",
+        default=4,
+        type=float,
+        help='epsilon to use for the attack.'
+    )
+    parser.add_argument(
+        "--iterations_adv",
+        default=10,
+        type=int,
+        help='iterations to use for the attack.'
+    )
+    parser.add_argument(
+        "--stepsize_adv",
+        default=1.,
+        type=float,
+        help='stepsize to use for the attack.'
+    )
+    parser.add_argument(
+        "--output_normalize",
+        type=str2bool, 
+        default=False,
+        help='stepsize to use for the attack.'
+    )
     args = parser.parse_args(args)
 
     # If some params are not passed, we use the default values based on model name.

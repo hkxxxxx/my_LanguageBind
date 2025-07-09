@@ -1,107 +1,3 @@
-# #!/bin/bash
-
-# # 基于LanguageBind在MSR-VTT数据集上训练的脚本
-# # 使用你提供的数据路径
-
-# # 设置环境变量
-# export CUDA_VISIBLE_DEVICES=0  # 根据你的GPU数量调整
-# export TORCH_DISTRIBUTED_DEBUG=DETAIL
-# export HF_DATASETS_OFFLINE=1
-# export TRANSFORMERS_OFFLINE=1
-
-# # 数据路径配置
-# CACHE_DIR="/root/autodl-tmp/LanguageBind/cache_dir"
-# LANGUAGEBIND_MODEL="/root/autodl-tmp/LanguageBind/cache_dir/models--LanguageBind--LanguageBind_Video_FT/snapshots/13f52c20ce666a7d017bcd00522039f4ab034a66"
-
-# # MSR-VTT数据集路径
-# MSRVTT_TRAIN_CSV="/root/autodl-tmp/LanguageBind/datasets/datasets--friedrichor--MSR-VTT/snapshots/c1af215a96934854f42683c19c51391aaee6f962/raw_data/MSRVTT_train.9k.csv"
-# MSRVTT_DATA_JSON="/root/autodl-tmp/LanguageBind/datasets/datasets--friedrichor--MSR-VTT/snapshots/c1af215a96934854f42683c19c51391aaee6f962/raw_data/MSRVTT_data.json"
-# MSRVTT_VIDEO_PATH="/root/autodl-tmp/LanguageBind/datasets/datasets--friedrichor--MSR-VTT/snapshots/c1af215a96934854f42683c19c51391aaee6f962/MSRVTT_Videos/video"
-
-# # 日志和输出目录
-# LOG_DIR="./logs/languagebind_msrvtt_$(date +%Y%m%d_%H%M%S)"
-# mkdir -p $LOG_DIR
-
-# # 训练参数配置
-# NUM_GPUS=1  # 根据实际GPU数量调整
-# BATCH_SIZE=32  # 每GPU的batch size
-# ACCUMULATION_STEPS=2  # 梯度累积步数
-# LEARNING_RATE=1e-4
-# EPOCHS=10
-# NUM_FRAMES=8
-# MAX_WORDS=77
-
-# echo "开始基于LanguageBind在MSR-VTT数据集上训练..."
-# echo "使用GPU数量: $NUM_GPUS"
-# echo "总batch size: $((NUM_GPUS * BATCH_SIZE * ACCUMULATION_STEPS))"
-# echo "LanguageBind模型路径: $LANGUAGEBIND_MODEL"
-# echo "MSR-VTT训练CSV: $MSRVTT_TRAIN_CSV"
-# echo "MSR-VTT数据JSON: $MSRVTT_DATA_JSON"
-# echo "MSR-VTT视频路径: $MSRVTT_VIDEO_PATH"
-# echo "日志目录: $LOG_DIR"
-
-# # 启动分布式训练
-# torchrun --nproc_per_node=$NUM_GPUS \
-#     -m main \
-#     --model "languagebind_video" \
-#     --pretrained "" \
-#     --cache-dir "$CACHE_DIR" \
-#     \
-#     --msrvtt-train-csv "$MSRVTT_TRAIN_CSV" \
-#     --msrvtt-data-json "$MSRVTT_DATA_JSON" \
-#     --msrvtt-video-path "$MSRVTT_VIDEO_PATH" \
-#     \
-#     --train-data "msrvtt" \
-#     --do_train \
-#     --do_eval \
-#     --val_vl_ret_data "msrvtt" \
-#     \
-#     --clip-type "vl_new" \
-#     --num-frames $NUM_FRAMES \
-#     --max_words $MAX_WORDS \
-#     --image-resolution 224 \
-#     \
-#     --lock-text \
-#     --lock-image \
-#     --init-temp 0.07 \
-#     --learn-temp \
-#     \
-#     --convert_to_lora \
-#     --lora_r 16 \
-#     --lora_alpha 16 \
-#     --lora_dropout 0.1 \
-#     \
-#     --lr $LEARNING_RATE \
-#     --coef-lr 1e-3 \
-#     --beta1 0.9 \
-#     --beta2 0.98 \
-#     --wd 0.2 \
-#     --eps 1e-6 \
-#     \
-#     --epochs $EPOCHS \
-#     --batch-size $BATCH_SIZE \
-#     --accum-freq $ACCUMULATION_STEPS \
-#     --warmup 1000 \
-#     \
-#     --precision "amp" \
-#     --workers 8 \
-#     --video-decode-backend "imgs" \
-#     \
-#     --save-frequency 1 \
-#     --log-every-n-steps 100 \
-#     --report-to "tensorboard" \
-#     --logs "$LOG_DIR" \
-#     --name "languagebind_msrvtt_training" \
-#     \
-#     --resume "latest" \
-#     --force-patch-dropout 0.5 \
-#     --seed 42
-
-# echo "训练完成！"
-# echo "检查日志: $LOG_DIR"
-# echo "TensorBoard: tensorboard --logdir=$LOG_DIR/languagebind_msrvtt_training/tensorboard"
-
-
 #!/bin/bash
 
 # 与LanguageBind源码完全兼容的训练配置
@@ -132,7 +28,7 @@ NUM_GPUS=1
 # 参考官方配置，针对48GB单GPU优化:
 # 官方: 8 GPUs × batch_size=128 × accum_freq=1 = 1024 effective batch size
 # 我们: 1 GPU × batch_size=64 × accum_freq=4 = 256 effective batch size (适中)
-BATCH_SIZE=128             # 48GB显卡可以承受
+BATCH_SIZE=8             # 48GB显卡可以承受
 ACCUMULATION_STEPS=8      # 保持梯度累积，与LanguageBind一致
 LEARNING_RATE=1e-3        # 参考官方深度训练的lr
 EPOCHS=10
@@ -173,6 +69,14 @@ done
 # 启动训练 - 完全遵循LanguageBind官方参数
 python -m main \
     --model "languagebind_video" \
+    --attack "pgd" \
+    --inner-loss "l2" \
+    --norm "linf" \
+    --eps_attack 4 \
+    --iterations_adv 10 \
+    --stepsize_adv 1. \
+    --output_normalize False \
+    \
     --cache-dir "$CACHE_DIR" \
     \
     --msrvtt-train-csv "$MSRVTT_TRAIN_CSV" \

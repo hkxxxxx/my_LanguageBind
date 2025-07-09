@@ -46,7 +46,7 @@ from training.logger import setup_logging
 from training.params import parse_args
 from training.scheduler import cosine_lr, const_lr, const_lr_cooldown
 from training.file_utils import pt_load, start_sync_process, remote_sync
-from train import train_one_epoch
+from train_robust import train_one_epoch
 from model.build_model import create_vat_model
 
 LATEST_CHECKPOINT_NAME = "epoch_latest.pt"

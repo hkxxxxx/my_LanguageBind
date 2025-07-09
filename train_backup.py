@@ -23,9 +23,6 @@ except ImportError:
 
 from open_clip import get_input_dtype, CLIP, CustomTextCLIP
 
-from train_robust.pgd_train import pgd
-from train_robust.apgd_train import apgd_train as apgd
-from train_robust.adversarial_training_clip import ComputeLossWrapper
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -218,20 +215,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             scheduler(step)
 
         images, input_ids, attention_mask = batch
-        # print(f"images.shape: {images.shape}")  # images.shape: torch.Size([128, 8, 3, 224, 224])
-        # print(f"input_ids: {input_ids}")  # input_ids: tensor([[49406,   320,  2801,  ..., 49407, 49407, 49407],
-        #                                                         # [49406,  2533,   533,  ..., 49407, 49407, 49407],
-        #                                                         # [49406,   320,  1611,  ..., 49407, 49407, 49407],
-        #                                                         # ...,
-        #                                                         # [49406,  1237,  7651,  ..., 49407, 49407, 49407],
-        #                                                         # [49406,   997,   533,  ..., 49407, 49407, 49407],
-        #                                                         # [49406,  2463,  2041,  ..., 49407, 49407, 49407]])
-        # print(f"input_ids.shape: {input_ids.shape}") # input_ids.shape: torch.Size([128, 77])
-        # print(f"input_ids.unique: {torch.unique(input_ids)}")
-        # print(f"attention_mask: {attention_mask}")
-        # print(f"attention_mask.shape: {attention_mask.shape}")
-        # print(f"attention_mask.unique: {torch.unique(attention_mask)}")
-
+        
         # 确保输入数据在正确的设备和数据类型上
         images = ensure_tensor_consistency(images, device, target_dtype)
         input_ids = ensure_tensor_consistency(input_ids, device, input_ids.dtype)  # 保持整数类型
@@ -265,16 +249,14 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             # First, cache the features without any gradient tracking.
             with torch.no_grad():
                 with autocast():
-                    # images shape is: torch.Size([128, 8, 3, 224, 224])
-                    model_out_raw = model(images, input_ids, attention_mask)    # model_out_raw['image_features'] shape is: torch.Size([128, 768])
-                    model_out = postprocess_clip_output(model_out_raw)  # model_out['image_features'] shape is: torch.Size([128, 768])
-                    model_out = ensure_output_consistency(model_out, device, target_dtype)  # model_out['image_features'] shape is: torch.Size([128, 768])
+                    model_out_raw = model(images, input_ids, attention_mask)
+                    model_out = postprocess_clip_output(model_out_raw)
+                    model_out = ensure_output_consistency(model_out, device, target_dtype)
                     
                     # 从model_out中移除logit_scale，只保留features
-                    logit_scale = model_out.pop("logit_scale")  # logit_scale shape is: 14.285568237304688
-
+                    logit_scale = model_out.pop("logit_scale")
+                    
                     for key, val in model_out.items():
-                        # print(f"key, val is: {key}, {val}")
                         if key in accum_features:
                             accum_features[key].append(val)
                         else:
@@ -297,7 +279,6 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 images = accum_images[j]
                 input_ids = accum_input_ids[j]
                 attention_mask = accum_attention_mask[j]
-                
                 with autocast():
                     model_out_raw = model(images, input_ids, attention_mask)
                     model_out = postprocess_clip_output(model_out_raw)
@@ -308,69 +289,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     for key, val in accum_features.items():
                         accumulated = accum_features[key]
                         inputs[key] = torch.cat(accumulated[:j] + [model_out[key]] + accumulated[j + 1:])
-                    
                     losses = loss(**inputs, logit_scale=logit_scale, output_dict=True)
-
-                    # === 修复对抗训练部分 ===
-                    if args.attack in ['pgd', 'apgd']:
-                        # 关键修复：使用当前单个batch的特征作为target，而不是累积的所有batch
-                        current_batch_image_features = model_out["image_features"]  # [128, 768]
-                        current_batch_text_features = model_out["text_features"]    # [128, 768] 或 None
-                        
-                        loss_inner_wrapper = ComputeLossWrapper(
-                            current_batch_image_features,  # 用当前batch作为target
-                            current_batch_text_features,   # 用当前batch的text features
-                            reduction='none' if args.attack == 'apgd' else 'mean', 
-                            loss=args.inner_loss,
-                            logit_scale=100.
-                        )
-                        
-                        model.eval()
-                        
-                        if args.attack == 'pgd':
-                            data_adv = pgd(
-                                forward=model,
-                                loss_fn=loss_inner_wrapper,
-                                data_clean=images,  # 当前batch的原始图像 [128, ...]
-                                targets=None,
-                                norm=args.norm,
-                                eps=args.eps_attack,
-                                iterations=args.iterations_adv,
-                                stepsize=args.stepsize_adv,
-                                output_normalize=args.output_normalize,
-                                perturbation=torch.zeros_like(images).uniform_(-args.eps_attack, args.eps_attack).requires_grad_(True),
-                                mode='max',
-                                verbose=False
-                            )
-                        elif args.attack == 'apgd':
-                            data_adv = apgd(
-                                model=model,
-                                loss_fn=loss_inner_wrapper,
-                                x=images,  # 当前batch的原始图像
-                                y=None,
-                                norm=args.norm,
-                                eps=args.eps_attack,
-                                n_iter=args.iterations_adv,
-                                verbose=True
-                            )
-                        
-                        # 可选：对对抗样本进行额外的损失计算
-                        with torch.no_grad():
-                            adv_model_out_raw = model(data_adv, input_ids, attention_mask)
-                            adv_model_out = postprocess_clip_output(adv_model_out_raw)
-                            adv_model_out = ensure_output_consistency(adv_model_out, device, target_dtype)
-                            
-                            # 计算对抗样本与原始样本的差异
-                            adv_loss = F.mse_loss(adv_model_out["image_features"], current_batch_image_features)
-                            losses["adversarial_loss"] = adv_loss
-                        
-                        del loss_inner_wrapper
-                        model.train()
-                    
                     del inputs
                     total_loss = sum(losses.values())
                     losses["loss"] = total_loss
-                
                 backward(total_loss, scaler)
 
         if scaler is not None:

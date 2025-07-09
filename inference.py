@@ -35,6 +35,9 @@ if __name__ == '__main__':
     }
     inputs['language'] = to_device(tokenizer(language, max_length=77, padding='max_length',
                                              truncation=True, return_tensors='pt'), device)
+#     print(f"inputs: {inputs}")
+    print(f"inputs['language']['input_ids']: {inputs['language']['input_ids']}")
+    print(f"inputs['language']['input_ids'].shape: {inputs['language']['input_ids'].shape}")
 
     with torch.no_grad():
         embeddings = model(inputs)

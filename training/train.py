@@ -116,8 +116,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             with torch.no_grad():
                 with autocast():
                     model_out = model(images, texts)
+                    print(f"model_out is: {model_out}")
                     model_out.pop("logit_scale")
                     for key, val in model_out.items():
+                        print(f"key, val are: {key}, {val}")
                         if key in accum_features:
                             accum_features[key].append(val)
                         else:

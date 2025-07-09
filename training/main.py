@@ -271,7 +271,7 @@ def main(args):
         model.set_grad_checkpointing()
 
     if is_master(args):
-        logging.info("Model:")
+        # logging.info("Model:")
         # logging.info(f"{str(model)}")
         logging.info("Params:")
         params_file = os.path.join(args.logs, args.name, "params.txt")
